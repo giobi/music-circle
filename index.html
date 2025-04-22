@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Circolo delle Quinte</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
     <style>
         /* Stili personalizzati per i cerchi */
         .circle-container {
@@ -37,7 +39,7 @@
             /* L'altezza verrà impostata dinamicamente nel JS */
             bottom: 50%; /* Posiziona la base al centro */
             left: 50%; /* Posiziona la base al centro */
-            transform-origin: bottom center; /* Ruota attorno alla base (al centro del cercolo) */
+            transform-origin: bottom center; /* Ruota attorno alla base (al centro del circolo) */
             display: flex;
             align-items: center;
             justify-content: center;
@@ -141,7 +143,7 @@
     </div>
 
     <script>
-        // Dati per il circolo delle quinte (Tonalità Maggiori e Minori)
+        // Dati per il circolo delle quinte (Tonalità Maggiori e Minori) - CORRETTO A 12 TONALITA'
         // Ogni elemento è un oggetto con:
         // - major: Nome della tonalità Maggiore (semplificato)
         // - minor: Nome della tonalità Minore relativa (semplificato)
@@ -154,9 +156,7 @@
             { major: "E", minor: "C#m", accidentals: 4 }, // 4 Diesis
             { major: "B", minor: "G#m", accidentals: 5 }, // 5 Diesis
             { major: "F#", minor: "D#m", accidentals: 6 }, // 6 Diesis
-            { major: "C#", minor: "A#m", accidentals: 7 }, // 7 Diesis (equivalente a Db)
-            { major: "Gb", minor: "Ebm", accidentals: -6 }, // 6 Bemolli (equivalente a F#)
-            { major: "Db", minor: "Bbm", accidentals: -5 }, // 5 Bemolli
+            { major: "C#", minor: "A#m", accidentals: 7 }, // 7 Diesis (Enharmonico di Db) - CORRETTO
             { major: "Ab", minor: "Fm", accidentals: -4 }, // 4 Bemolli
             { major: "Eb", minor: "Cm", accidentals: -3 }, // 3 Bemolli
             { major: "Bb", minor: "Gm", accidentals: -2 }, // 2 Bemolli
@@ -171,8 +171,9 @@
         const keySharpsFlatsElement = document.getElementById('keySharpsFlats');
         const relatedChordsList = document.getElementById('relatedChordsList');
 
-        // Mappa gli indici relativi (rispetto all'indice cliccato) alle classi di colore
-        const colorMap = {
+
+        // Mappa gli indici relativi (rispetto all'indice cliccato) alle classi di colore standard
+        const colorMapStandard = {
             0: { // Indice 0 è l'accordo cliccato (Tonica)
                 major: 'highlight-tonic-major',
                 minor: 'highlight-tonic-minor'
@@ -185,8 +186,97 @@
                  major: 'highlight-subdominant-major',
                  minor: 'highlight-subdominant-minor'
             }
-             // Non mappiamo esplicitamente 2 e numSegments - 2 perché vogliamo solo I, IV, V e relative
         };
+
+
+        // --- Tone.js Setup ---
+        // Crea un sintetizzatore polifonico semplice
+        const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+
+        // Mappa nomi di accordi a note per Tone.js (semplificato per ora) - AGGIORNATA PER 12 TONALITA' con C#
+        // Questa è una mappatura molto basilare, potresti estenderla per accordi più complessi
+        const chordNotesMap = {
+            "C": ["C4", "E4", "G4"],
+            "G": ["G4", "B4", "D5"],
+            "D": ["D4", "F#4", "A4"],
+            "A": ["A4", "C#5", "E5"],
+            "E": ["E4", "G#4", "B4"],
+            "B": ["B3", "D#4", "F#4"],
+            "F#": ["F#3", "A#3", "C#4"],
+            "C#": ["C#4", "F4", "G#4"], // CORRETTO
+            "Ab": ["Ab3", "C4", "Eb4"],
+            "Eb": ["Eb4", "G4", "Bb4"],
+            "Bb": ["Bb3", "D4", "F4"],
+            "F": ["F4", "A4", "C5"],
+            "Am": ["A4", "C5", "E5"],
+            "Em": ["E4", "G4", "B4"],
+            "Bm": ["B3", "D4", "F#4"],
+            "F#m": ["F#3", "A3", "C#4"],
+            "C#m": ["C#4", "E4", "G#4"],
+            "G#m": ["G#3", "B3", "D#4"],
+            "D#m": ["D#4", "F#4", "A#4"],
+            "A#m": ["A#3", "C#4", "F4"], // CORRETTO
+            "Ebm": ["Eb4", "Gb4", "Bb4"],
+            "Bbm": ["Bb3", "Db4", "F4"], // CORRETTO (Nota Db4 rimane per Bbm)
+            "Fm": ["F4", "Ab4", "C5"],
+            "Cm": ["C4", "Eb4", "G4"],
+            "Gm": ["G4", "Bb4", "D5"],
+            "Dm": ["D4", "F4", "A4"]
+        };
+
+        let activeArpeggio = null; // Per tenere traccia dell'arpeggio in riproduzione
+
+        // Funzione per suonare un accordo come arpeggio
+        function playChordArpeggio(chordName) {
+             // Assicurati che Tone.js sia avviato (necessario per l'interazione dell'utente)
+             if (Tone.context.state !== 'running') {
+                Tone.start();
+            }
+
+            const notes = chordNotesMap[chordName];
+            if (!notes) {
+                console.warn(`Notes not found for chord: ${chordName}`);
+                return;
+            }
+
+            // Ferma l'arpeggio precedente se presente
+            if (activeArpeggio) {
+                activeArpeggio.stop();
+                activeArpeggio.dispose(); // Pulisci le risorse
+            }
+
+            // Crea un nuovo arpeggio
+            activeArpeggio = new Tone.Sequence((time, note) => {
+                synth.triggerAttackRelease(note, '8n', time); // Suona ogni nota per una croma
+            }, notes).start(0); // Inizia subito
+
+            // Imposta il tempo dell'arpeggio (ad esempio, 4 note al secondo)
+            Tone.Transport.bpm.value = 120; // Esempio BPM
+            Tone.Transport.start(); // Avvia il trasporto per l'arpeggio
+        }
+
+        // Funzione per fermare l'arpeggio
+        function stopArpeggio() {
+            if (activeArpeggio) {
+                activeArpeggio.stop();
+                activeArpeggio.dispose();
+                activeArpeggio = null;
+            }
+             Tone.Transport.stop(); // Ferma il trasporto
+        }
+
+        // Funzione per rimuovere tutte le evidenziazioni (semplificata)
+        function clearHighlighting() {
+             document.querySelectorAll('.key-label-wrapper').forEach(el => {
+                // Rimuovi tutte le classi di colore standard
+                Object.values(colorMapStandard).forEach(colors => {
+                    el.classList.remove(colors.major, colors.minor);
+                });
+                 el.classList.remove('highlighted-label'); // Rimuovi la classe testo bianco
+                 el.style.backgroundColor = '#e5e7eb'; // Ripristina lo sfondo grigio
+            });
+             document.querySelectorAll('.highlighted-segment').forEach(el => el.classList.remove('highlighted-segment'));
+        }
 
 
         // Funzione per creare e posizionare i segmenti e le etichette
@@ -279,47 +369,39 @@
                 majorLabelWrapper.addEventListener('click', () => handleSegmentClick(index, 'major'));
                 minorLabelWrapper.addEventListener('click', () => handleSegmentClick(index, 'minor'));
 
-                // Rimuovi i listener dai segmenti per evitare doppi click
-                // majorSegment.addEventListener('click', () => handleSegmentClick(index, 'major'));
-                // minorSegment.addEventListener('click', () => handleSegmentClick(index, 'minor'));
+                // --- Aggiungi eventi HOVER per l'audio ---
+                 majorLabelWrapper.addEventListener('mouseenter', () => playChordArpeggio(key.major));
+                 majorLabelWrapper.addEventListener('mouseleave', () => stopArpeggio());
+
+                 minorLabelWrapper.addEventListener('mouseenter', () => playChordArpeggio(key.minor));
+                 minorLabelWrapper.addEventListener('mouseleave', () => stopArpeggio());
 
             });
         }
 
         // Funzione per gestire il click su un segmento (ora sul wrapper della label)
         function handleSegmentClick(index, type) {
+            // Pulisci qualsiasi evidenziazione precedente
+            clearHighlighting();
+
             const selectedKey = circleData[index];
             const numSegments = circleData.length;
 
-            // Calcola gli indici dei 6 accordi correlati
+            // Calcola gli indici dei 6 accordi correlati per la visualizzazione standard
             // Gli indici wrapping around the circle
             const indexMinusOne = (index - 1 + numSegments) % numSegments; // IV / iv
             const indexPlusOne = (index + 1) % numSegments;   // V / v
 
-            const relatedIndices = [
+            const relatedIndicesStandard = [
                 { index: index, relation: 0 }, // 0 = Tonica (I/i)
                 { index: indexMinusOne, relation: numSegments - 1 }, // numSegments - 1 = Sottodominante (IV/iv)
                 { index: indexPlusOne, relation: 1 } // 1 = Dominante (V/v)
             ];
 
 
-            // Rimuovi tutte le evidenziazioni precedenti dai wrapper delle label
-            document.querySelectorAll('.key-label-wrapper').forEach(el => {
-                // Rimuovi tutte le classi di colore
-                Object.values(colorMap).forEach(colors => {
-                    el.classList.remove(colors.major, colors.minor);
-                });
-                 el.classList.remove('highlighted-label'); // Rimuovi la classe testo bianco
-                 el.style.backgroundColor = '#e5e7eb'; // Ripristina lo sfondo grigio
-            });
-
-             // Rimuovi evidenziazioni dai segmenti (se le avevamo messe, ma ora ci concentriamo sulle label)
-             document.querySelectorAll('.highlighted-segment').forEach(el => el.classList.remove('highlighted-segment'));
-
-
-            // Evidenzia i wrapper delle label dei 6 accordi correlati con i colori corretti
+            // Evidenzia i wrapper delle label dei 6 accordi correlati con i colori standard
             const relatedChordsNames = [];
-            relatedIndices.forEach(rel => {
+            relatedIndicesStandard.forEach(rel => {
                 const relIndex = rel.index;
                 const relation = rel.relation; // 0, 1, or numSegments - 1
 
@@ -329,7 +411,7 @@
                 // Evidenzia il wrapper della label Maggiore per questo indice
                 const majorLabelWrapper = circleContainer.querySelector(`.key-label-wrapper[data-index='${relIndex}'][data-type='major']`);
                  if (majorLabelWrapper) {
-                     const colorClass = colorMap[relation]?.major;
+                     const colorClass = colorMapStandard[relation]?.major;
                      if (colorClass) {
                          majorLabelWrapper.classList.add(colorClass, 'highlighted-label');
                           majorLabelWrapper.style.backgroundColor = ''; // Rimuovi sfondo grigio per usare il colore della classe
@@ -341,7 +423,7 @@
                 // Evidenzia il wrapper della label Minore per questo indice
                 const minorLabelWrapper = innerCircleContainer.querySelector(`.key-label-wrapper[data-index='${relIndex}'][data-type='minor']`);
                  if (minorLabelWrapper) {
-                     const colorClass = colorMap[relation]?.minor;
+                     const colorClass = colorMapStandard[relation]?.minor;
                       if (colorClass) {
                          minorLabelWrapper.classList.add(colorClass, 'highlighted-label');
                           minorLabelWrapper.style.backgroundColor = ''; // Rimuovi sfondo grigio per usare il colore della classe
@@ -371,8 +453,8 @@
             // Aggiorna la lista degli accordi correlati
             relatedChordsList.innerHTML = ''; // Pulisci la lista precedente
             // Ordina gli accordi correlati per visualizzarli in un ordine più logico (es. Maggiore, Minore)
-             // Usiamo relatedIndices per mantenere l'ordine Tonica, Sottodominante, Dominante
-            relatedIndices.forEach(rel => {
+             // Usiamo relatedIndicesStandard forEach per mantenere l'ordine Tonica, Sottodominante, Dominante
+            relatedIndicesStandard.forEach(rel => {
                  const majorChord = circleData[rel.index].major;
                  const minorChord = circleData[rel.index].minor;
 
@@ -391,8 +473,10 @@
             infoBox.classList.add('visible');
         }
 
+
         // Inizializza il circolo al caricamento della pagina
         createCircle();
+
 
         // Aggiusta il posizionamento degli elementi al ridimensionamento della finestra
         window.addEventListener('resize', () => {
@@ -402,6 +486,14 @@
             infoBox.classList.remove('visible');
             infoBox.classList.add('hidden');
         });
+
+        // Avvia il contesto audio al primo click dell'utente (necessario per molti browser)
+        document.body.addEventListener('click', () => {
+            if (Tone.context.state !== 'running') {
+                Tone.start();
+            }
+        });
+
 
     </script>
 
