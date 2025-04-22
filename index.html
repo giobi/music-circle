@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circolo delle Quinte</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Stili personalizzati per i cerchi */
+        .circle-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px; /* Massima larghezza per il cerchio */
+            margin: auto;
+            aspect-ratio: 1 / 1; /* Mantiene il contenitore quadrato */
+            border-radius: 9999px; /* Rende il contenitore circolare */
+            background-color: #fff; /* Sfondo bianco */
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1); /* Ombra leggera */
+            border: 1px solid #e5e7eb; /* Bordo leggero */
+            overflow: hidden; /* Nasconde i segmenti che escono dal bordo */
+        }
+
+        .inner-circle-container {
+            position: absolute;
+            top: 25%; /* Sposta verso il centro */
+            left: 25%; /* Sposta verso il centro */
+            width: 50%; /* Dimensione del cerchio interno */
+            height: 50%; /* Dimensione del cerchio interno */
+            border-radius: 9999px; /* Rende il contenitore circolare */
+            /* background-color: rgba(200, 200, 200, 0.2); /* Sfondo leggero per il cerchio interno */
+        }
+
+
+        .key-segment {
+            position: absolute;
+            width: 2px; /* Larghezza sottile per il segmento */
+            /* L'altezza verrà impostata dinamicamente nel JS */
+            bottom: 50%; /* Posiziona la base al centro */
+            left: 50%; /* Posiziona la base al centro */
+            transform-origin: bottom center; /* Ruota attorno alla base (al centro del cercolo) */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            /* transition: transform 0.1s ease-in-out; */ /* Rimosso per evitare interferenze con l'evidenziazione */
+             /* background-color: rgba(0, 0, 0, 0.05); /* Sottile linea di divisione - ora gestita per tipo */
+        }
+
+        .key-segment-major {
+             background-color: rgba(0, 0, 0, 0.05); /* Sottile linea di divisione */
+             /* L'altezza verrà impostata sul raggio esterno */
+        }
+
+         .key-segment-minor {
+             background-color: rgba(0, 0, 0, 0.05); /* Sottile linea di divisione */
+             /* L'altezza verrà impostata sul raggio interno */
+        }
+
+        /* Stili per il wrapper delle label */
+        .key-label-wrapper {
+            position: absolute;
+            width: 60px; /* Larghezza del wrapper */
+            height: 30px; /* Altezza del wrapper */
+            background-color: #e5e7eb; /* Sfondo grigio */
+            border-radius: 8px; /* Bordi arrotondati */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer; /* Il wrapper è cliccabile */
+            transition: background-color 0.3s ease; /* Transizione per il colore di sfondo */
+            transform: translate(-50%, -50%); /* Centra il wrapper sulla sua posizione */
+             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Ombra leggera */
+        }
+
+
+        .key-label {
+            font-size: 0.9rem; /* Dimensione testo */
+            font-weight: bold;
+            text-align: center;
+            color: #333; /* Colore testo predefinito */
+            pointer-events: none; /* Permette al click di passare al wrapper */
+             user-select: none; /* Impedisce la selezione del testo */
+        }
+
+        .key-label-major .key-label {
+            color: #1a202c; /* Colore più scuro per i maggiori */
+        }
+
+        .key-label-minor .key-label {
+            color: #2d3748; /* Colore leggermente diverso per i minori */
+            font-size: 0.8rem; /* Testo leggermente più piccolo per i minori */
+        }
+
+        /* Classi per l'evidenziazione colorata */
+        .highlight-tonic-major { background-color: #4CAF50; } /* Verde scuro */
+        .highlight-tonic-minor { background-color: #81C784; } /* Verde chiaro */
+        .highlight-subdominant-major { background-color: #2196F3; } /* Blu scuro */
+        .highlight-subdominant-minor { background-color: #64B5F6; } /* Blu chiaro */
+        .highlight-dominant-major { background-color: #F44336; } /* Rosso scuro */
+        .highlight-dominant-minor { background-color: #E57373; } /* Rosso chiaro */
+
+
+         .highlighted-label .key-label {
+             color: white; /* Testo bianco sui fondi colorati */
+         }
+
+
+         .info-box {
+            min-height: 100px; /* Altezza minima per la box informativa */
+            transition: opacity 0.5s ease-in-out;
+         }
+
+         .hidden {
+             opacity: 0;
+             height: 0;
+             overflow: hidden;
+         }
+
+         .visible {
+             opacity: 1;
+             height: auto;
+         }
+
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4 font-sans">
+
+    <h1 class="text-2xl font-bold mb-6 text-gray-800">Circolo delle Quinte Interattivo</h1>
+
+    <div class="circle-container">
+         <div class="inner-circle-container">
+             </div>
+        </div>
+
+    <div id="infoBox" class="info-box mt-8 p-6 bg-white rounded-lg shadow-lg w-full max-w-md text-center border border-gray-200 hidden">
+        <h2 class="text-xl font-semibold mb-2 text-gray-700" id="keyName"></h2>
+        <p class="text-gray-600" id="keyInfo"></p>
+        <p class="text-gray-600" id="keySharpsFlats"></p>
+         <p class="text-gray-700 font-semibold mt-4">Accordi Correlati:</p>
+         <ul id="relatedChordsList" class="text-gray-600 list-disc list-inside"></ul>
+    </div>
+
+    <script>
+        // Dati per il circolo delle quinte (Tonalità Maggiori e Minori)
+        // Ogni elemento è un oggetto con:
+        // - major: Nome della tonalità Maggiore (semplificato)
+        // - minor: Nome della tonalità Minore relativa (semplificato)
+        // - accidentals: Numero di diesis (+) o bemolli (-)
+        const circleData = [
+            { major: "C", minor: "Am", accidentals: 0 },
+            { major: "G", minor: "Em", accidentals: 1 }, // 1 Diesis
+            { major: "D", minor: "Bm", accidentals: 2 }, // 2 Diesis
+            { major: "A", minor: "F#m", accidentals: 3 }, // 3 Diesis
+            { major: "E", minor: "C#m", accidentals: 4 }, // 4 Diesis
+            { major: "B", minor: "G#m", accidentals: 5 }, // 5 Diesis
+            { major: "F#", minor: "D#m", accidentals: 6 }, // 6 Diesis
+            { major: "C#", minor: "A#m", accidentals: 7 }, // 7 Diesis (equivalente a Db)
+            { major: "Gb", minor: "Ebm", accidentals: -6 }, // 6 Bemolli (equivalente a F#)
+            { major: "Db", minor: "Bbm", accidentals: -5 }, // 5 Bemolli
+            { major: "Ab", minor: "Fm", accidentals: -4 }, // 4 Bemolli
+            { major: "Eb", minor: "Cm", accidentals: -3 }, // 3 Bemolli
+            { major: "Bb", minor: "Gm", accidentals: -2 }, // 2 Bemolli
+            { major: "F", minor: "Dm", accidentals: -1 }  // 1 Bemolle
+        ];
+
+        const circleContainer = document.querySelector('.circle-container');
+        const innerCircleContainer = document.querySelector('.inner-circle-container');
+        const infoBox = document.getElementById('infoBox');
+        const keyNameElement = document.getElementById('keyName');
+        const keyInfoElement = document.getElementById('keyInfo');
+        const keySharpsFlatsElement = document.getElementById('keySharpsFlats');
+        const relatedChordsList = document.getElementById('relatedChordsList');
+
+        // Mappa gli indici relativi (rispetto all'indice cliccato) alle classi di colore
+        const colorMap = {
+            0: { // Indice 0 è l'accordo cliccato (Tonica)
+                major: 'highlight-tonic-major',
+                minor: 'highlight-tonic-minor'
+            },
+            1: { // Indice 1 è l'accordo successivo (Dominante)
+                major: 'highlight-dominant-major',
+                minor: 'highlight-dominant-minor'
+            },
+            [circleData.length - 1]: { // Indice numSegments - 1 è l'accordo precedente (Sottodominante)
+                 major: 'highlight-subdominant-major',
+                 minor: 'highlight-subdominant-minor'
+            }
+             // Non mappiamo esplicitamente 2 e numSegments - 2 perché vogliamo solo I, IV, V e relative
+        };
+
+
+        // Funzione per creare e posizionare i segmenti e le etichette
+        function createCircle() {
+            // Pulisci i contenuti precedenti
+            circleContainer.querySelectorAll('.key-segment, .key-label-wrapper').forEach(el => el.remove());
+            innerCircleContainer.querySelectorAll('.key-segment, .key-label-wrapper').forEach(el => el.remove());
+
+
+            const numSegments = circleData.length;
+            const anglePerSegment = 360 / numSegments;
+            const outerRadius = circleContainer.offsetWidth / 2; // Raggio del cerchio esterno
+            const innerRadius = innerCircleContainer.offsetWidth / 2; // Raggio del cerchio interno
+
+            const outerLabelRadius = outerRadius * 0.8; // Raggio per posizionare le etichette maggiori
+            const innerLabelRadius = innerRadius * 0.8; // Raggio per posizionare le etichette minori
+
+
+            circleData.forEach((key, index) => {
+                const angle = anglePerSegment * index; // Angolo per questo segmento
+
+                // --- Segmenti Maggiori (Cerchio Esterno) ---
+                const majorSegment = document.createElement('div');
+                majorSegment.classList.add('key-segment', 'key-segment-major');
+                majorSegment.dataset.index = index;
+                majorSegment.dataset.type = 'major'; // Indica che è un segmento maggiore
+                majorSegment.style.height = `${outerRadius}px`; // Altezza = raggio esterno
+                majorSegment.style.transform = `translate(-50%, 0) rotate(${angle}deg)`; // Posiziona al centro e ruota
+                circleContainer.appendChild(majorSegment);
+
+                // --- Wrapper e Etichetta Maggiori ---
+                const majorLabelWrapper = document.createElement('div');
+                majorLabelWrapper.classList.add('key-label-wrapper', 'key-label-major');
+                 majorLabelWrapper.dataset.index = index; // Aggiungi data-index al wrapper
+                 majorLabelWrapper.dataset.type = 'major'; // Aggiungi data-type al wrapper
+
+
+                const majorLabel = document.createElement('div');
+                majorLabel.classList.add('key-label'); // Solo la classe base key-label
+
+                // Calcola la posizione del wrapper maggiore lungo il raggio esterno
+                const majorLabelAngle = (angle - 90) * (Math.PI / 180); // Offset per iniziare dall'alto (Do)
+                const majorLabelX = outerRadius + outerLabelRadius * Math.cos(majorLabelAngle);
+                const majorLabelY = outerRadius + outerLabelRadius * Math.sin(majorLabelAngle);
+
+                majorLabelWrapper.style.left = `${majorLabelX}px`;
+                majorLabelWrapper.style.top = `${majorLabelY}px`;
+                majorLabel.textContent = key.major;
+
+                majorLabelWrapper.appendChild(majorLabel); // Aggiungi l'etichetta dentro il wrapper
+                circleContainer.appendChild(majorLabelWrapper);
+
+
+                // --- Segmenti Minori (Cerchio Interno) ---
+                const minorSegment = document.createElement('div');
+                minorSegment.classList.add('key-segment', 'key-segment-minor');
+                minorSegment.dataset.index = index;
+                minorSegment.dataset.type = 'minor'; // Indica che è un segmento minore
+                 minorSegment.style.height = `${innerRadius}px`; // Altezza = raggio interno
+                 // Posiziona il segmento minore al centro del *suo* contenitore (innerCircleContainer)
+                 minorSegment.style.transform = `translate(-50%, 0) rotate(${angle}deg)`;
+                 innerCircleContainer.appendChild(minorSegment);
+
+
+                // --- Wrapper e Etichetta Minori ---
+                const minorLabelWrapper = document.createElement('div');
+                minorLabelWrapper.classList.add('key-label-wrapper', 'key-label-minor');
+                 minorLabelWrapper.dataset.index = index; // Aggiungi data-index al wrapper
+                 minorLabelWrapper.dataset.type = 'minor'; // Aggiungi data-type al wrapper
+
+
+                const minorLabel = document.createElement('div');
+                minorLabel.classList.add('key-label'); // Solo la classe base key-label
+
+
+                // Calcola la posizione del wrapper minore lungo il raggio interno
+                const minorLabelAngle = (angle - 90) * (Math.PI / 180); // Offset per iniziare dall'alto (Do)
+                const minorLabelX = innerRadius + innerLabelRadius * Math.cos(minorLabelAngle);
+                const minorLabelY = innerRadius + innerLabelRadius * Math.sin(minorLabelAngle);
+
+                minorLabelWrapper.style.left = `${minorLabelX}px`;
+                minorLabelWrapper.style.top = `${minorLabelY}px`;
+                minorLabel.textContent = key.minor;
+
+                minorLabelWrapper.appendChild(minorLabel); // Aggiungi l'etichetta dentro il wrapper
+                innerCircleContainer.appendChild(minorLabelWrapper);
+
+
+                // Aggiungi l'evento click ai wrapper delle etichette (maggiori e minori)
+                majorLabelWrapper.addEventListener('click', () => handleSegmentClick(index, 'major'));
+                minorLabelWrapper.addEventListener('click', () => handleSegmentClick(index, 'minor'));
+
+                // Rimuovi i listener dai segmenti per evitare doppi click
+                // majorSegment.addEventListener('click', () => handleSegmentClick(index, 'major'));
+                // minorSegment.addEventListener('click', () => handleSegmentClick(index, 'minor'));
+
+            });
+        }
+
+        // Funzione per gestire il click su un segmento (ora sul wrapper della label)
+        function handleSegmentClick(index, type) {
+            const selectedKey = circleData[index];
+            const numSegments = circleData.length;
+
+            // Calcola gli indici dei 6 accordi correlati
+            // Gli indici wrapping around the circle
+            const indexMinusOne = (index - 1 + numSegments) % numSegments; // IV / iv
+            const indexPlusOne = (index + 1) % numSegments;   // V / v
+
+            const relatedIndices = [
+                { index: index, relation: 0 }, // 0 = Tonica (I/i)
+                { index: indexMinusOne, relation: numSegments - 1 }, // numSegments - 1 = Sottodominante (IV/iv)
+                { index: indexPlusOne, relation: 1 } // 1 = Dominante (V/v)
+            ];
+
+
+            // Rimuovi tutte le evidenziazioni precedenti dai wrapper delle label
+            document.querySelectorAll('.key-label-wrapper').forEach(el => {
+                // Rimuovi tutte le classi di colore
+                Object.values(colorMap).forEach(colors => {
+                    el.classList.remove(colors.major, colors.minor);
+                });
+                 el.classList.remove('highlighted-label'); // Rimuovi la classe testo bianco
+                 el.style.backgroundColor = '#e5e7eb'; // Ripristina lo sfondo grigio
+            });
+
+             // Rimuovi evidenziazioni dai segmenti (se le avevamo messe, ma ora ci concentriamo sulle label)
+             document.querySelectorAll('.highlighted-segment').forEach(el => el.classList.remove('highlighted-segment'));
+
+
+            // Evidenzia i wrapper delle label dei 6 accordi correlati con i colori corretti
+            const relatedChordsNames = [];
+            relatedIndices.forEach(rel => {
+                const relIndex = rel.index;
+                const relation = rel.relation; // 0, 1, or numSegments - 1
+
+                const majorKey = circleData[relIndex];
+                const minorKey = circleData[relIndex]; // Stesso indice per la relativa minore
+
+                // Evidenzia il wrapper della label Maggiore per questo indice
+                const majorLabelWrapper = circleContainer.querySelector(`.key-label-wrapper[data-index='${relIndex}'][data-type='major']`);
+                 if (majorLabelWrapper) {
+                     const colorClass = colorMap[relation]?.major;
+                     if (colorClass) {
+                         majorLabelWrapper.classList.add(colorClass, 'highlighted-label');
+                          majorLabelWrapper.style.backgroundColor = ''; // Rimuovi sfondo grigio per usare il colore della classe
+                         relatedChordsNames.push(majorKey.major);
+                     }
+                 }
+
+
+                // Evidenzia il wrapper della label Minore per questo indice
+                const minorLabelWrapper = innerCircleContainer.querySelector(`.key-label-wrapper[data-index='${relIndex}'][data-type='minor']`);
+                 if (minorLabelWrapper) {
+                     const colorClass = colorMap[relation]?.minor;
+                      if (colorClass) {
+                         minorLabelWrapper.classList.add(colorClass, 'highlighted-label');
+                          minorLabelWrapper.style.backgroundColor = ''; // Rimuovi sfondo grigio per usare il colore della classe
+                         relatedChordsNames.push(minorKey.minor);
+                      }
+                 }
+            });
+
+
+            // Aggiorna la box informativa
+            let selectedKeyName = type === 'major' ? selectedKey.major : selectedKey.minor;
+            let relativeKeyName = type === 'major' ? selectedKey.minor : selectedKey.major;
+
+            keyNameElement.textContent = selectedKeyName;
+            keyInfoElement.textContent = `Tonalità Selezionata: ${selectedKeyName} (Relativa: ${relativeKeyName})`;
+
+            let accidentalsText = '';
+            if (selectedKey.accidentals > 0) {
+                accidentalsText = `${selectedKey.accidentals} ${selectedKey.accidentals === 1 ? 'Diesis' : 'Diesis'}`;
+            } else if (selectedKey.accidentals < 0) {
+                accidentalsText = `${Math.abs(selectedKey.accidentals)} ${Math.abs(selectedKey.accidentals) === 1 ? 'Bemolle' : 'Bemolli'}`;
+            } else {
+                accidentalsText = 'Nessun Diesis o Bemolle';
+            }
+            keySharpsFlatsElement.textContent = accidentalsText;
+
+            // Aggiorna la lista degli accordi correlati
+            relatedChordsList.innerHTML = ''; // Pulisci la lista precedente
+            // Ordina gli accordi correlati per visualizzarli in un ordine più logico (es. Maggiore, Minore)
+             // Usiamo relatedIndices per mantenere l'ordine Tonica, Sottodominante, Dominante
+            relatedIndices.forEach(rel => {
+                 const majorChord = circleData[rel.index].major;
+                 const minorChord = circleData[rel.index].minor;
+
+                 const liMajor = document.createElement('li');
+                 liMajor.textContent = majorChord;
+                 relatedChordsList.appendChild(liMajor);
+
+                 const liMinor = document.createElement('li');
+                 liMinor.textContent = minorChord;
+                 relatedChordsList.appendChild(liMinor);
+            });
+
+
+            // Rendi visibile la box informativa
+            infoBox.classList.remove('hidden');
+            infoBox.classList.add('visible');
+        }
+
+        // Inizializza il circolo al caricamento della pagina
+        createCircle();
+
+        // Aggiusta il posizionamento degli elementi al ridimensionamento della finestra
+        window.addEventListener('resize', () => {
+            // Rimuovi i contenuti precedenti e ricrea il circolo
+            createCircle();
+             // Nascondi la info box al ridimensionamento
+            infoBox.classList.remove('visible');
+            infoBox.classList.add('hidden');
+        });
+
+    </script>
+
+</body>
+</html>
