@@ -1,9 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-MJ84KW8Z0H"></script>
-<script>
+    <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
@@ -29,7 +27,7 @@
         }
 
         .chord-card {
-            background-color: #e5e7eb; /* Light gray */
+            background-color: #e5e7eb; /* Light gray default */
             border-radius: 8px;
             padding: 12px;
             text-align: center;
@@ -37,20 +35,37 @@
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             transition: background-color 0.2s ease;
             cursor: pointer; /* Make clickable for hover */
+            color: #333; /* Default text color */
         }
 
         .chord-card:hover {
-            background-color: #d1d5db; /* Slightly darker gray */
+            background-color: #d1d5db; /* Slightly darker gray on hover */
         }
 
          .chord-card.playing {
-             background-color: #a7f3d0; /* Light green for the currently playing chord */
+             /* background-color: #a7f3d0; /* Light green for the currently playing chord - now handled by root color */
+             box-shadow: 0 0 8px 4px rgba(167, 243, 208, 0.7); /* Glowing effect when playing */
          }
-
 
         .info-box {
             min-height: 80px;
         }
+
+        /* Colors for the 12 root notes */
+        .chord-C { background-color: #FFADAD; } /* Light Red */
+        .chord-Csharp { background-color: #FFD6A5; } /* Light Orange */
+        .chord-D { background-color: #FDFFB6; } /* Light Yellow */
+        .chord-Eb { background-color: #CAFFBF; } /* Light Green */
+        .chord-E { background-color: #9BF6FF; } /* Light Cyan */
+        .chord-F { background-color: #A0C4FF; } /* Light Blue */
+        .chord-Fsharp { background-color: #BDB2FF; } /* Light Purple */
+        .chord-G { background-color: #FFC6FF; } /* Light Pink */
+        .chord-Ab { background-color: #FFFFFC; } /* White */
+        .chord-A { background-color: #E2F0CB; } /* Pale Green */
+        .chord-Bb { background-color: #B5EAD7; } /* Mint Green */
+        .chord-B { background-color: #FFDAC1; } /* Peach */
+
+
     </style>
 </head>
 <body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4 font-sans">
@@ -94,27 +109,30 @@
 
     <script>
         // --- Tone.js Setup ---
-        // Configure a synth with a softer attack and release envelope
-        const softSynth = new Tone.Synth({
-            oscillator: {
-                type: "triangle" // Or "sine", "square", "sawtooth"
+        // Use the Sampler for piano sounds
+        const sampler = new Tone.Sampler({
+            urls: {
+                C4: "C4.mp3",
+                "D#4": "Ds4.mp3", // D# is Eb
+                "F#4": "Fs4.mp3", // F# is Gb
+                A4: "A4.mp3",
             },
-            envelope: {
-                attack: 0.1, // Slower attack
-                decay: 0.2,
-                sustain: 0.9,
-                release: 0.5 // Longer release
-            }
+            release: 1,
+            baseUrl: "https://tonejs.github.io/audio/salamander/",
         }).toDestination();
 
-        // Use PolySynth with the configured synth
-        const synth = new Tone.PolySynth(Tone.Synth, {
-             synth: softSynth.get() // Pass the soft synth configuration
-        }).toDestination();
+        // Ensure sampler is loaded before enabling playback
+        let samplerLoaded = false;
+        Tone.loaded().then(() => {
+            samplerLoaded = true;
+            console.log("Sampler loaded successfully!");
+            // Optionally, enable buttons or show a ready message here
+        });
 
 
-        // Map chord names to notes for Tone.js
-        // Includes major, minor, dominant 7, and some altered chords for weirdness
+        // Map chord names to notes for Tone.js Sampler
+        // Includes major, minor, dominant 7, major 7, minor 7, sus4, diminished, half-diminished, augmented
+        // Notes are mapped to the closest available sample note if not directly available
         const chordNotesMap = {
             // Major
             "C": ["C4", "E4", "G4"], "C#": ["C#4", "F4", "G#4"], "D": ["D4", "F#4", "A4"], "Eb": ["Eb4", "G4", "Bb4"],
@@ -132,20 +150,93 @@
             "E7": ["E4", "G#4", "B4", "D5"], "F7": ["F4", "A4", "C5", "Eb5"], "F#7": ["F#4", "A#4", "C#5", "E5"], "G7": ["G4", "B4", "D5", "F5"],
             "Ab7": ["Ab4", "C5", "Eb5", "Gb5"], "A7": ["A4", "C#5", "E5", "G5"], "Bb7": ["Bb4", "D5", "F5", "Ab5"], "B7": ["B3", "D#4", "F#4", "A4"],
 
-             // Examples of altered/other (expand for more weirdness)
-             "Cdim": ["C4", "Eb4", "Gb4"], // Diminished
-             "Caug": ["C4", "E4", "G#4"], // Augmented
-             "Cm7b5": ["C4", "Eb4", "Gb4", "Bb4"], // Half-diminished
-             "Cmaj7": ["C4", "E4", "G4", "B4"], // Major 7
-             "Cm7": ["C4", "Eb4", "G4", "Bb4"] // Minor 7
+             // Major 7
+            "Cmaj7": ["C4", "E4", "G4", "B4"], "C#maj7": ["C#4", "F4", "G#4", "C5"], "Dmaj7": ["D4", "F#4", "A4", "C#5"], "Ebmaj7": ["Eb4", "G4", "Bb4", "D5"],
+            "Emaj7": ["E4", "G#4", "B4", "D#5"], "Fmaj7": ["F4", "A4", "C5", "E5"], "F#maj7": ["F#4", "A#4", "C#5", "E#5"], "Gmaj7": ["G4", "B4", "D5", "F#5"],
+            "Abmaj7": ["Ab4", "C5", "Eb5", "G5"], "Amaj7": ["A4", "C#5", "E5", "G#5"], "Bbmaj7": ["Bb4", "D5", "F5", "A5"], "Bmaj7": ["B4", "D#5", "F#5", "A#5"],
+
+             // Minor 7
+            "Cm7": ["C4", "Eb4", "G4", "Bb4"], "C#m7": ["C#4", "E4", "G#4", "B4"], "Dm7": ["D4", "F4", "A4", "C5"], "Ebm7": ["Eb4", "Gb4", "Bb4", "Db5"],
+            "Em7": ["E4", "G4", "B4", "D5"], "Fm7": ["F4", "Ab4", "C5", "Eb5"], "F#m7": ["F#4", "A4", "C#5", "E5"], "Gm7": ["G4", "Bb4", "D5", "F5"],
+            "Abm7": ["Ab4", "B4", "Eb5", "Gb5"], "Am7": ["A4", "C5", "E5", "G5"], "Bbm7": ["Bb4", "Db5", "F5", "Ab5"], "Bm7": ["B3", "D4", "F#4", "A4"],
+
+             // Sus4
+             "Csus4": ["C4", "F4", "G4"], "C#sus4": ["C#4", "F#4", "G#4"], "Dsus4": ["D4", "G4", "A4"], "Ebsus4": ["Eb4", "Ab4", "Bb4"],
+             "Esus4": ["E4", "A4", "B4"], "Fsus4": ["F4", "Bb4", "C5"], "F#sus4": ["F#4", "B4", "C#5"], "Gsus4": ["G4", "C5", "D5"],
+             "Absus4": ["Ab4", "Db5", "Eb5"], "Asus4": ["A4", "D5", "E5"], "Bbsus4": ["Bb4", "Eb5", "F5"], "Bsus4": ["B3", "E4", "F#4"],
+
+
+             // Diminished
+             "Cdim": ["C4", "Eb4", "Gb4"],
+             "C#dim": ["C#4", "E4", "G4"],
+             "Ddim": ["D4", "F4", "Ab4"],
+             "Ebdim": ["Eb4", "Gb4", "A4"],
+             "Edim": ["E4", "G4", "Bb4"],
+             "Fdim": ["F4", "Ab4", "B4"],
+             "F#dim": ["F#4", "A4", "C5"],
+             "Gdim": ["G4", "Bb4", "Db5"],
+             "Abdim": ["Ab4", "B4", "D5"],
+             "Adim": ["A4", "C5", "Eb5"],
+             "Bbdim": ["Bb4", "Db5", "E5"],
+             "Bdim": ["B3", "D4", "F4"],
+
+             // Half-diminished (m7b5)
+             "Cm7b5": ["C4", "Eb4", "Gb4", "Bb4"],
+             "C#m7b5": ["C#4", "E4", "G4", "B4"],
+             "Dm7b5": ["D4", "F4", "Ab4", "C5"],
+             "Ebm7b5": ["Eb4", "Gb4", "A4", "Db5"],
+             "Em7b5": ["E4", "G4", "Bb4", "D5"],
+             "Fm7b5": ["F4", "Ab4", "B4", "Eb5"],
+             "F#m7b5": ["F#4", "A4", "C5", "E5"],
+             "Gm7b5": ["G4", "Bb4", "Db5", "F5"],
+             "Abm7b5": ["Ab4", "B4", "D5", "Gb5"],
+             "Am7b5": ["A4", "C5", "Eb5", "G5"],
+             "Bbm7b5": ["Bb4", "Db5", "E5", "Ab5"],
+             "Bm7b5": ["B3", "D4", "F4", "A4"],
+
+             // Augmented (simple triad)
+             "Caug": ["C4", "E4", "G#4"],
+             "C#aug": ["C#4", "F4", "A4"],
+             "Daug": ["D4", "F#4", "A#4"],
+             "Ebaug": ["Eb4", "G4", "B4"],
+             "Eaug": ["E4", "G#4", "C5"],
+             "Faug": ["F4", "A4", "C#5"],
+             "F#aug": ["F#4", "A#4", "D5"],
+             "Gaug": ["G4", "B4", "D#5"],
+             "Abaug": ["Ab4", "C5", "E5"],
+             "Aaug": ["A4", "C#5", "F5"],
+             "Bbaug": ["Bb4", "D5", "F#5"],
+             "Baug": ["B3", "D#4", "G4"]
+
         };
+
+        // Map root note to CSS class for coloring
+        const rootColorMap = {
+            "C": "chord-C", "C#": "chord-Csharp", "D": "chord-D", "Eb": "chord-Eb",
+            "E": "chord-E", "F": "chord-F", "F#": "chord-Fsharp", "G": "chord-G",
+            "Ab": "chord-Ab", "A": "chord-A", "Bb": "chord-Bb", "B": "chord-B",
+            "Db": "chord-Db" // Include Db for completeness, though C# is primary
+        };
+
+        // Function to get the root note from a chord name string
+        function getRootNote(chordName) {
+            // Handle sharps and flats
+            if (chordName.length > 1 && (chordName[1] === '#' || chordName[1] === 'b')) {
+                return chordName.substring(0, 2);
+            }
+            return chordName.substring(0, 1);
+        }
+
 
         let activeArpeggio = null;
         let playbackSequence = null; // For playing the entire progression
 
-        // Function to play a chord as an arpeggio (used for hover)
-        function playChordArpeggio(chordName) {
-             // Ensure Tone.js is started (required for user interaction)
+        // Function to play a chord (used for hover)
+        function playChord(chordName) {
+             if (!samplerLoaded) {
+                 console.warn("Sampler not loaded yet!");
+                 return; // Don't play if sampler isn't ready
+             }
              if (Tone.context.state !== 'running') {
                 Tone.start();
             }
@@ -156,36 +247,22 @@
                 return;
             }
 
-            // Stop previous arpeggio if active
+            // Stop previous arpeggio/sound if active (for hover)
             if (activeArpeggio) {
-                activeArpeggio.stop();
-                activeArpeggio.dispose();
+                 sampler.releaseAll(); // Ensure all previous notes are released
+                 activeArpeggio = null; // Reset tracker
             }
 
-            // Use the configured synth for the hover arpeggio
-             synth.triggerAttackRelease(notes, '1n'); // Play the whole chord for one note duration
-
-            // We are not using Sequence for hover, only for full playback
-            // activeArpeggio = new Tone.Sequence((time, note) => {
-            //     synth.triggerAttackRelease(note, '8n', time);
-            // }, notes).start(0);
-
-            // Tone.Transport.bpm.value = 100;
-            // Tone.Transport.start();
+            // Play the chord using the sampler
+             sampler.triggerAttackRelease(notes, '1n'); // Play the whole chord for one note duration
         }
 
-        // Function to stop the arpeggio (not strictly needed with triggerAttackRelease)
-        function stopArpeggio() {
-            // We don't explicitly stop the sound here because triggerAttackRelease handles the duration
-            // If we had used Sequence for hover, we would have needed to stop it
+        // Function to stop the sound (for hover - less critical with triggerAttackRelease)
+        function stopSound() {
+             // With triggerAttackRelease, the sound stops after the duration.
+             // If we used a longer sustain or a different method, we'd need to implement stopping here.
+             // For now, this function can be empty or used for future enhancements.
         }
-
-         // Start the audio context on the first user click (required by many browsers)
-        document.body.addEventListener('click', () => {
-            if (Tone.context.state !== 'running') {
-                Tone.start();
-            }
-        });
 
 
         // --- Chord Generation Logic ---
@@ -233,20 +310,21 @@
         };
 
          // Map of "weird" chords for each major key (examples)
-         // Includes secondary dominants (V/ii, V/iii, V/IV, V/V, V/vi), modal interchange (iv, bVI, bVII)
+         // Includes secondary dominants (V/ii, V/iii, V/IV, V/V, V/vi), modal interchange (iv, bVI, bVII),
+         // Major 7, Minor 7, Sus4, Diminished, Augmented
          const weirdChordsMap = {
-            "C": ["A7", "B7", "C7", "D7", "E7", "Fm", "Ab", "Bb", "Cmaj7", "Cm7"],
-            "C#": ["Bb7", "C7", "C#7", "Eb7", "F7", "F#m", "A", "B", "C#maj7", "C#m7"],
-            "D": ["B7", "C#7", "D7", "E7", "F#7", "Gm", "Bb", "C", "Dmaj7", "Dm7"],
-            "Eb": ["C7", "D7", "Eb7", "F7", "G7", "Abm", "B", "C#", "Ebmaj7", "Ebm7"],
-            "E": ["C#7", "Eb7", "E7", "F#7", "G#7", "Am", "C", "D", "Emaj7", "Em7"],
-            "F": ["D7", "E7", "F7", "G7", "A7", "Bbm", "Db", "Eb", "Fmaj7", "Fm7"],
-            "F#": ["Eb7", "F7", "F#7", "G#7", "A#7", "Bm", "D", "E", "F#maj7", "F#m7"],
-            "G": ["E7", "F#7", "G7", "A7", "B7", "Cm", "Eb", "F", "Gmaj7", "Gm7"],
-            "Ab": ["F7", "G7", "Ab7", "Bb7", "C7", "C#m", "E", "F#", "Abmaj7", "Abm7"],
-            "A": ["F#7", "G#7", "A7", "B7", "C#7", "Dm", "F", "G", "Amaj7", "Am7"],
-            "Bb": ["G7", "A7", "Bb7", "C7", "D7", "Ebm", "Gb", "Ab", "Bbmaj7", "Bbm7"],
-            "B": ["G#7", "A#7", "B7", "C#7", "D#7", "Fm", "Ab", "Bb", "Bmaj7", "Bm7"]
+            "C": ["A7", "B7", "C7", "D7", "E7", "Fm", "Ab", "Bb", "Cmaj7", "Cm7", "Csus4", "Cdim", "Caug"],
+            "C#": ["Bb7", "C7", "C#7", "Eb7", "F7", "F#m", "A", "B", "C#maj7", "C#m7", "C#sus4", "C#dim", "C#aug"],
+            "D": ["B7", "C#7", "D7", "E7", "F#7", "Gm", "Bb", "C", "Dmaj7", "Dm7", "Dsus4", "Ddim", "Daug"],
+            "Eb": ["C7", "D7", "Eb7", "F7", "G7", "Abm", "B", "C#", "Ebmaj7", "Ebm7", "Ebsus4", "Ebdim", "Ebaug"],
+            "E": ["C#7", "Eb7", "E7", "F#7", "G#7", "Am", "C", "D", "Emaj7", "Em7", "Esus4", "Edim", "Eaug"],
+            "F": ["D7", "E7", "F7", "G7", "A7", "Bbm", "Db", "Eb", "Fmaj7", "Fm7", "Fsus4", "Fdim", "Faug"],
+            "F#": ["Eb7", "F7", "F#7", "G#7", "A#7", "Bm", "D", "E", "F#maj7", "F#m7", "F#sus4", "F#dim", "F#aug"],
+            "G": ["E7", "F#7", "G7", "A7", "B7", "Cm", "Eb", "F", "Gmaj7", "Gm7", "Gsus4", "Gdim", "Gaug"],
+            "Ab": ["F7", "G7", "Ab7", "Bb7", "C7", "C#m", "E", "F#", "Abmaj7", "Abm7", "Absus4", "Abdim", "Abaug"],
+            "A": ["F#7", "G#7", "A7", "B7", "C#7", "Dm", "F", "G", "Amaj7", "Am7", "Asus4", "Adim", "Aaug"],
+            "Bb": ["G7", "A7", "Bb7", "C7", "D7", "Ebm", "Gb", "Ab", "Bbmaj7", "Bbm7", "Bbsus4", "Bbdim", "Bbaug"],
+            "B": ["G#7", "A#7", "B7", "C#7", "D#7", "Fm", "Ab", "Bb", "Bmaj7", "Bm7", "Bsus4", "Bdim", "Baug"]
          };
 
          // Map of pre-tonic chords for each major key
@@ -280,9 +358,25 @@
                  "C#7": ["F#", "F#maj7", "D#m", "B"], // V7/IV -> IV, IVmaj7, ii, bVII (Enharmonic of Db7 -> Gb, Gbm, Bbm, Ebb)
                  "Cdim": ["C", "Am"],           // vii° -> I, vi (often as vii°7)
                  "Cm7b5": ["C", "Am"],           // iiø7 (vii in minor) -> I, vi
-                 // Add other diminished chords if used
+                 "C#dim": ["Dm", "F#m"], // Added resolutions for other diminished/half-diminished if they appear
+                 "Ddim": ["Em", "G#m"],
+                 "Ebdim": ["Fm", "Bbm"],
+                 "Edim": ["F#m", "C#m"],
+                 "Fdim": ["Gm", "Dm"],
+                 "F#dim": ["Abm", "Ebm"],
+                 "Gdim": ["Am", "Fm"],
+                 "Abdim": ["Bbm", "Cm"],
+                 "Adim": ["Bm", "F#m"],
+                 "Bbdim": ["Cm", "Gm"],
+                 "Bdim": ["C#m", "G#m"],
+                 "D#m7b5": ["Em", "C#m"],
+                 "Ebm7b5": ["Fm", "Dm"],
+                 "F#m7b5": ["Gm", "Em"],
+                 "G#m7b5": ["Am", "F#m"],
+                 "A#m7b5": ["Bm", "G#m"],
+                 "Cm7b5": ["Dm", "Bm"]
              },
-              "C#": { // Example for C#
+              "C#": { // Example for C# - Needs to be fully populated like C
                  "G#7": ["C#", "C#maj7", "A#m", "F#"],
                  "D#7": ["G#", "G#maj7", "Ebm", "C#"],
                  "A#7": ["D#m", "Eb"],
@@ -290,7 +384,8 @@
                  "C7": ["Fm", "F"],
                  "G7": ["Cm7b5", "Cm"],
                  "D#dim": ["C#", "A#m"],
-                 "Cm7b5": ["C#", "A#m"]
+                 "Cm7b5": ["C#", "A#m"],
+                 // Add other tension chords and their resolutions for C#
              },
              "D": { /* ... similar to C, transposed ... */
                  "A7": ["D", "Dmaj7", "Bm", "G"],
@@ -301,6 +396,7 @@
                  "G#7": ["D#m7b5", "D#m"],
                  "Ddim": ["D", "Bm"],
                  "C#m7b5": ["D", "Bm"]
+                 // Add other tension chords and their resolutions for D
              },
               "Eb": { /* ... transposed ... */
                  "Bb7": ["Eb", "Ebmaj7", "Cm", "Ab"],
@@ -311,6 +407,7 @@
                  "A7": ["Ebm7b5", "Ebm"],
                  "Ebdim": ["Eb", "Cm"],
                  "Dm7b5": ["Eb", "Cm"]
+                 // Add other tension chords and their resolutions for Eb
              },
               "E": { /* ... transposed ... */
                  "B7": ["E", "Emaj7", "C#m", "A"],
@@ -321,6 +418,7 @@
                  "A#7": ["F#m7b5", "F#m"],
                  "Edim": ["E", "C#m"],
                  "D#m7b5": ["E", "C#m"]
+                 // Add other tension chords and their resolutions for E
              },
               "F": { /* ... transposed ... */
                  "C7": ["F", "Fmaj7", "Dm", "Bb"],
@@ -331,6 +429,7 @@
                  "B7": ["Em7b5", "Em"],
                  "Fdim": ["F", "Dm"],
                  "Em7b5": ["F", "Dm"]
+                 // Add other tension chords and their resolutions for F
              },
               "F#": { /* ... transposed ... */
                  "C#7": ["F#", "F#maj7", "D#m", "B"],
@@ -341,6 +440,7 @@
                  "C7": ["Fm7b5", "Fm"],
                  "F#dim": ["F#", "D#m"],
                  "Ebm7b5": ["F#", "D#m"]
+                 // Add other tension chords and their resolutions for F#
              },
               "G": { /* ... transposed ... */
                  "D7": ["G", "Gmaj7", "Em", "C"],
@@ -351,6 +451,7 @@
                  "C#7": ["F#m7b5", "F#m"],
                  "Gdim": ["G", "Em"],
                  "F#m7b5": ["G", "Em"]
+                 // Add other tension chords and their resolutions for G
              },
               "Ab": { /* ... transposed ... */
                  "Eb7": ["Ab", "Abmaj7", "Fm", "Db"],
@@ -361,6 +462,7 @@
                  "D7": ["Gm7b5", "Gm"],
                  "Abdim": ["Ab", "Fm"],
                  "Gm7b5": ["Ab", "Fm"]
+                 // Add other tension chords and their resolutions for Ab
              },
               "A": { /* ... transposed ... */
                  "E7": ["A", "Amaj7", "F#m", "D"],
@@ -371,6 +473,7 @@
                  "D#7": ["A#m7b5", "A#m"],
                  "Adim": ["A", "F#m"],
                  "G#m7b5": ["A", "F#m"]
+                 // Add other tension chords and their resolutions for A
              },
               "Bb": { /* ... transposed ... */
                  "F7": ["Bb", "Bbmaj7", "Gm", "Eb"],
@@ -381,6 +484,7 @@
                  "E7": ["Am7b5", "Am"],
                  "Bbdim": ["Bb", "Gm"],
                  "Am7b5": ["Bb", "Gm"]
+                 // Add other tension chords and their resolutions for Bb
              },
               "B": { /* ... transposed ... */
                  "F#7": ["B", "Bmaj7", "G#m", "E"],
@@ -391,6 +495,7 @@
                  "E#7": ["A#m7b5", "A#m"], // E#7 enharmonic of F7
                  "Bdim": ["B", "G#m"],
                  "A#m7b5": ["B", "G#m"]
+                 // Add other tension chords and their resolutions for B
              }
          };
 
@@ -399,6 +504,14 @@
         function isTensionChord(chordName) {
             return chordName.endsWith("7") || chordName.endsWith("dim") || chordName.endsWith("m7b5");
         }
+
+         // Function to check if a chord is generally resolving/stable
+         function isResolvingChord(chordName) {
+             // This is a simplified check. Could be expanded based on diatonic function.
+             // For now, assume non-tension chords are generally more stable.
+             return !isTensionChord(chordName);
+         }
+
 
         // Function to generate the chord progression
         function generateChordProgression() {
@@ -428,6 +541,23 @@
                     chosenChord = diatonic[Math.floor(Math.random() * diatonic.length)];
                 }
 
+                 // --- Logic to ensure row starts (indices 4, 8, 12) are resolving ---
+                 if (i === 4 || i === 8 || i === 12) {
+                     // If the chosen chord is a tension chord at a row start
+                     if (isTensionChord(chosenChord)) {
+                         // Replace it with a random diatonic chord (which are generally resolving)
+                         let resolvingChord = diatonic[Math.floor(Math.random() * diatonic.length)];
+                         // Ensure the replacement isn't also a tension chord (like Bm7b5 in C)
+                         while(isTensionChord(resolvingChord)){
+                              resolvingChord = diatonic[Math.floor(Math.random() * diatonic.length)];
+                         }
+                         chosenChord = resolvingChord;
+                          console.log(`Corrected row start at index ${i}: Changed to ${chosenChord}`);
+                     }
+                 }
+                 // End Row Start Logic
+
+
                 progression.push(chosenChord);
             }
 
@@ -438,27 +568,29 @@
             // --- Post-Generation Correction for Resolutions ---
             const currentResolutionMap = resolutionMap[tonalCenter];
 
-            for (let i = 0; i < progression.length - 1; i++) {
-                const currentChord = progression[i];
-                const nextChord = progression[i + 1];
+            if (currentResolutionMap) { // Only apply if resolution map is defined for the tonal center
+                for (let i = 0; i < progression.length - 1; i++) {
+                    const currentChord = progression[i];
+                    const nextChord = progression[i + 1];
 
-                // Check if the current chord is a tension chord
-                if (isTensionChord(currentChord)) {
-                    // Find the plausible resolutions for this tension chord in the current tonal center
-                    const plausibleResolutions = currentResolutionMap[currentChord];
+                    // Check if the current chord is a tension chord
+                    if (isTensionChord(currentChord)) {
+                        // Find the plausible resolutions for this tension chord in the current tonal center
+                        const plausibleResolutions = currentResolutionMap[currentChord];
 
-                    // If there are plausible resolutions defined for this chord
-                    if (plausibleResolutions) {
-                        // Check if the next chord is NOT a plausible resolution
-                        if (!plausibleResolutions.includes(nextChord)) {
-                            // Replace the next chord with a random plausible resolution
-                            const correctedResolution = plausibleResolutions[Math.floor(Math.random() * plausibleResolutions.length)];
-                            progression[i + 1] = correctedResolution;
-                             console.log(`Corrected: ${currentChord} -> ${nextChord} changed to ${currentChord} -> ${correctedResolution}`); // Log for debugging
+                        // If there are resolutions plausibly defined for this specific tension chord
+                        if (plausibleResolutions && plausibleResolutions.length > 0) {
+                            // Check if the next chord is NOT a plausible resolution
+                            if (!plausibleResolutions.includes(nextChord)) {
+                                // Replace the next chord with a random plausible resolution
+                                const correctedResolution = plausibleResolutions[Math.floor(Math.random() * plausibleResolutions.length)];
+                                progression[i + 1] = correctedResolution;
+                                 console.log(`Corrected: ${currentChord} -> ${nextChord} changed to ${currentChord} -> ${correctedResolution}`); // Log for debugging
+                            }
                         }
+                         // Note: If a tension chord doesn't have defined resolutions in the resolutionMap,
+                         // the original random generation is kept.
                     }
-                     // Note: If a tension chord doesn't have defined resolutions in the resolutionMap,
-                     // the original random generation is kept.
                 }
             }
              // End Post-Generation Correction
@@ -474,13 +606,20 @@
             progression.forEach((chord, index) => {
                 const chordCard = document.createElement('div');
                 chordCard.classList.add('chord-card');
+
+                 // Add color class based on root note
+                 const rootNote = getRootNote(chord);
+                 const colorClass = rootColorMap[rootNote] || 'bg-gray-200'; // Fallback color
+                 chordCard.classList.add(colorClass);
+
+
                 chordCard.textContent = chord;
                  chordCard.dataset.index = index; // Add index for highlighting during playback
 
 
                 // Add hover events for audio
-                chordCard.addEventListener('mouseenter', () => playChordArpeggio(chord));
-                chordCard.addEventListener('mouseleave', () => stopArpeggio());
+                chordCard.addEventListener('mouseenter', () => playChord(chord));
+                chordCard.addEventListener('mouseleave', () => stopSound());
 
                 chordProgressionDisplay.appendChild(chordCard);
             });
@@ -490,18 +629,18 @@
 
         // Function to play the entire progression
         function playProgression() {
+             if (!samplerLoaded) {
+                 console.warn("Sampler not loaded yet!");
+                 return; // Don't play if sampler isn't ready
+             }
             const chordCards = document.querySelectorAll('.chord-card');
             const progression = Array.from(chordCards).map(card => card.textContent); // Get chords from the display
 
             // Stop any previous playback
-            if (playbackSequence) {
-                playbackSequence.stop();
-                playbackSequence.dispose();
-            }
-             Tone.Transport.stop(); // Ensure the transport is stopped
-             clearPlaybackHighlighting(); // Remove previous highlighting
+            stopProgression(); // Use the dedicated stop function
 
              // Create a sequence to play the chords
+             // Use '1n' for duration and interval
              playbackSequence = new Tone.Sequence((time, index) => {
                  const chordName = progression[index];
                  const notes = chordNotesMap[chordName];
@@ -514,8 +653,11 @@
                          currentCard.classList.add('playing');
                      }
 
-                     // Play the chord
-                     synth.triggerAttackRelease(notes, '1n', time); // Play for one bar (1n)
+                     // Play the chord using the sampler
+                      // sampler.triggerAttackRelease(notes, '1n', time); // Play for one bar
+                      sampler.triggerAttackRelease(notes, '0.8n', time); // Slightly shorter duration to avoid overlap
+
+
                  }
              }, Array.from(progression.keys()), '1n'); // Array of indices, 1 bar interval
 
@@ -523,6 +665,13 @@
              Tone.Transport.bpm.value = 80; // A BPM for playback (you can adjust)
              playbackSequence.start(0); // Start immediately
              Tone.Transport.start();
+
+             // Optional: Stop transport and remove highlighting at the end of the sequence
+             playbackSequence.on('stop', () => {
+                 Tone.Transport.stop();
+                 clearPlaybackHighlighting();
+             });
+
         }
 
         // Function to stop playback
@@ -533,6 +682,7 @@
                  playbackSequence = null;
              }
              Tone.Transport.stop(); // Stop Tone.js transport
+             sampler.releaseAll(); // Ensure any sounding notes are stopped
              clearPlaybackHighlighting(); // Remove highlighting
         }
 
@@ -556,7 +706,11 @@
 
 
         // Generate an initial chord progression on page load
-        generateChordProgression();
+        // Wrap initial generation in Tone.loaded() to ensure sampler is ready
+        Tone.loaded().then(() => {
+            generateChordProgression();
+        });
+
 
     </script>
 
