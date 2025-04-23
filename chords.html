@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creative Chord Progression Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .chord-display {
+            display: grid;
+            /* Set 4 columns of equal width */
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px; /* Gap between chords */
+        }
+
+        .chord-card {
+            background-color: #e5e7eb; /* Light gray */
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.2s ease;
+            cursor: pointer; /* Make clickable for hover */
+        }
+
+        .chord-card:hover {
+            background-color: #d1d5db; /* Slightly darker gray */
+        }
+
+         .chord-card.playing {
+             background-color: #a7f3d0; /* Light green for the currently playing chord */
+         }
+
+
+        .info-box {
+            min-height: 80px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4 font-sans">
+
+    <h1 class="text-2xl font-bold mb-6 text-gray-800">Creative Chord Progression Generator</h1>
+
+    <div class="controls-container bg-white p-6 rounded-lg shadow-lg mb-6 w-full max-w-md border border-gray-200">
+        <div class="mb-4">
+            <label for="tonalCenter" class="block text-gray-700 font-semibold mb-2">Tonal Center:</label>
+            <select id="tonalCenter" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </select>
+        </div>
+
+        <div class="mb-6">
+            <label for="weirdness" class="block text-gray-700 font-semibold mb-2">Creativity (Weirdness):</label>
+            <input type="range" id="weirdness" min="0" max="10" value="0" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+            <p class="text-center text-gray-600 text-sm mt-1"><span id="weirdnessValue">0</span> / 10</p>
+        </div>
+
+        <button id="generateButton" class="w-full px-4 py-2 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75 mb-4">
+            Generate Chord Progression (16 bars)
+        </button>
+
+         <div class="flex space-x-4">
+             <button id="playButton" class="flex-1 px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75">
+                Play Progression
+            </button>
+             <button id="stopButton" class="flex-1 px-4 py-2 bg-red-500 text-white font-semibold rounded-lg shadow-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75">
+                Stop
+            </button>
+         </div>
+    </div>
+
+    <div id="chordProgressionDisplay" class="chord-display w-full max-w-2xl mb-6">
+        </div>
+
+    <div id="infoBox" class="info-box mt-4 p-4 bg-white rounded-lg shadow-lg w-full max-w-md text-center border border-gray-200 hidden">
+         <p class="text-gray-700">Hover over a chord to hear it. Click "Play Progression" to listen to the sequence.</p>
+    </div>
+
+
+    <script>
+        // --- Tone.js Setup ---
+        // Configure a synth with a softer attack and release envelope
+        const softSynth = new Tone.Synth({
+            oscillator: {
+                type: "triangle" // Or "sine", "square", "sawtooth"
+            },
+            envelope: {
+                attack: 0.1, // Slower attack
+                decay: 0.2,
+                sustain: 0.9,
+                release: 0.5 // Longer release
+            }
+        }).toDestination();
+
+        // Use PolySynth with the configured synth
+        const synth = new Tone.PolySynth(Tone.Synth, {
+             synth: softSynth.get() // Pass the soft synth configuration
+        }).toDestination();
+
+
+        // Map chord names to notes for Tone.js
+        // Includes major, minor, dominant 7, and some altered chords for weirdness
+        const chordNotesMap = {
+            // Major
+            "C": ["C4", "E4", "G4"], "C#": ["C#4", "F4", "G#4"], "D": ["D4", "F#4", "A4"], "Eb": ["Eb4", "G4", "Bb4"],
+            "E": ["E4", "G#4", "B4"], "F": ["F4", "A4", "C5"], "F#": ["F#4", "A#4", "C#5"], "G": ["G4", "B4", "D5"],
+            "Ab": ["Ab4", "C5", "Eb5"], "A": ["A4", "C#5", "E5"], "Bb": ["Bb4", "D5", "F5"], "B": ["B4", "D#5", "F#5"],
+             "Db": ["Db4", "F4", "Ab4"], // Added Db for pre-tonics
+
+            // Minor
+            "Cm": ["C4", "Eb4", "G4"], "C#m": ["C#4", "E4", "G#4"], "Dm": ["D4", "F4", "A4"], "Ebm": ["Eb4", "Gb4", "Bb4"],
+            "Em": ["E4", "G4", "B4"], "Fm": ["F4", "Ab4", "C5"], "F#m": ["F#4", "A4", "C#5"], "Gm": ["G4", "Bb4", "D5"],
+            "Abm": ["Ab4", "B4", "Eb5"], "Am": ["A4", "C5", "E5"], "Bbm": ["Bb4", "Db5", "F5"], "Bm": ["B3", "D4", "F#4"],
+
+            // Dominant 7
+            "C7": ["C4", "E4", "G4", "Bb4"], "C#7": ["C#4", "F4", "G#4", "B4"], "D7": ["D4", "F#4", "A4", "C5"], "Eb7": ["Eb4", "G4", "Bb4", "Db5"],
+            "E7": ["E4", "G#4", "B4", "D5"], "F7": ["F4", "A4", "C5", "Eb5"], "F#7": ["F#4", "A#4", "C#5", "E5"], "G7": ["G4", "B4", "D5", "F5"],
+            "Ab7": ["Ab4", "C5", "Eb5", "Gb5"], "A7": ["A4", "C#5", "E5", "G5"], "Bb7": ["Bb4", "D5", "F5", "Ab5"], "B7": ["B3", "D#4", "F#4", "A4"],
+
+             // Examples of altered/other (expand for more weirdness)
+             "Cdim": ["C4", "Eb4", "Gb4"], // Diminished
+             "Caug": ["C4", "E4", "G#4"], // Augmented
+             "Cm7b5": ["C4", "Eb4", "Gb4", "Bb4"], // Half-diminished
+             "Cmaj7": ["C4", "E4", "G4", "B4"], // Major 7
+             "Cm7": ["C4", "Eb4", "G4", "Bb4"] // Minor 7
+        };
+
+        let activeArpeggio = null;
+        let playbackSequence = null; // For playing the entire progression
+
+        // Function to play a chord as an arpeggio (used for hover)
+        function playChordArpeggio(chordName) {
+             // Ensure Tone.js is started (required for user interaction)
+             if (Tone.context.state !== 'running') {
+                Tone.start();
+            }
+
+            const notes = chordNotesMap[chordName];
+            if (!notes) {
+                console.warn(`Notes not found for chord: ${chordName}`);
+                return;
+            }
+
+            // Stop previous arpeggio if active
+            if (activeArpeggio) {
+                activeArpeggio.stop();
+                activeArpeggio.dispose();
+            }
+
+            // Use the configured synth for the hover arpeggio
+             synth.triggerAttackRelease(notes, '1n'); // Play the whole chord for one note duration
+
+            // We are not using Sequence for hover, only for full playback
+            // activeArpeggio = new Tone.Sequence((time, note) => {
+            //     synth.triggerAttackRelease(note, '8n', time);
+            // }, notes).start(0);
+
+            // Tone.Transport.bpm.value = 100;
+            // Tone.Transport.start();
+        }
+
+        // Function to stop the arpeggio (not strictly needed with triggerAttackRelease)
+        function stopArpeggio() {
+            // We don't explicitly stop the sound here because triggerAttackRelease handles the duration
+            // If we had used Sequence for hover, we would have needed to stop it
+        }
+
+         // Start the audio context on the first user click (required by many browsers)
+        document.body.addEventListener('click', () => {
+            if (Tone.context.state !== 'running') {
+                Tone.start();
+            }
+        });
+
+
+        // --- Chord Generation Logic ---
+        const tonalCenterSelect = document.getElementById('tonalCenter');
+        const weirdnessInput = document.getElementById('weirdness');
+        const weirdnessValueSpan = document.getElementById('weirdnessValue');
+        const generateButton = document.getElementById('generateButton');
+        const playButton = document.getElementById('playButton'); // Reference to the play button
+        const stopButton = document.getElementById('stopButton'); // Reference to the stop button
+        const chordProgressionDisplay = document.getElementById('chordProgressionDisplay');
+        const infoBox = document.getElementById('infoBox');
+
+
+        // Available Major Tonalities
+        const majorKeys = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+
+        // Populate the tonal center dropdown
+        majorKeys.forEach(key => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = key + " Major";
+            tonalCenterSelect.appendChild(option);
+        });
+
+        // Update the displayed weirdness value
+        weirdnessInput.addEventListener('input', () => {
+            weirdnessValueSpan.textContent = weirdnessInput.value;
+        });
+
+        // Map of diatonic chords for each major key (simplified)
+        // I: Major, ii: Minor, iii: Minor, IV: Major, V: Major, vi: Minor, vii: Diminished
+        const diatonicChordsMap = {
+            "C": ["C", "Dm", "Em", "F", "G", "Am", "Bm7b5"],
+            "C#": ["C#", "D#m", "Ebm", "F#", "G#", "A#m", "Cm7b5"],
+            "D": ["D", "Em", "F#m", "G", "A", "Bm", "C#m7b5"],
+            "Eb": ["Eb", "Fm", "Gm", "Ab", "Bb", "Cm", "Dm7b5"],
+            "E": ["E", "F#m", "G#m", "A", "B", "C#m", "D#m7b5"],
+            "F": ["F", "Gm", "Am", "Bb", "C", "Dm", "Em7b5"],
+            "F#": ["F#", "G#m", "A#m", "B", "C#", "D#m", "Ebm7b5"],
+            "G": ["G", "Am", "Bm", "C", "D", "Em", "F#m7b5"],
+            "Ab": ["Ab", "Bbm", "Cm", "Db", "Eb", "Fm", "Gm7b5"],
+            "A": ["A", "Bm", "C#m", "D", "E", "F#m", "G#m7b5"],
+            "Bb": ["Bb", "Cm", "Dm", "Eb", "F", "Gm", "Am7b5"],
+            "B": ["B", "C#m", "D#m", "E", "F#", "G#m", "A#m7b5"]
+        };
+
+         // Map of "weird" chords for each major key (examples)
+         // Includes secondary dominants (V/ii, V/iii, V/IV, V/V, V/vi), modal interchange (iv, bVI, bVII)
+         const weirdChordsMap = {
+            "C": ["A7", "B7", "C7", "D7", "E7", "Fm", "Ab", "Bb", "Cmaj7", "Cm7"],
+            "C#": ["Bb7", "C7", "C#7", "Eb7", "F7", "F#m", "A", "B", "C#maj7", "C#m7"],
+            "D": ["B7", "C#7", "D7", "E7", "F#7", "Gm", "Bb", "C", "Dmaj7", "Dm7"],
+            "Eb": ["C7", "D7", "Eb7", "F7", "G7", "Abm", "B", "C#", "Ebmaj7", "Ebm7"],
+            "E": ["C#7", "Eb7", "E7", "F#7", "G#7", "Am", "C", "D", "Emaj7", "Em7"],
+            "F": ["D7", "E7", "F7", "G7", "A7", "Bbm", "Db", "Eb", "Fmaj7", "Fm7"],
+            "F#": ["Eb7", "F7", "F#7", "G#7", "A#7", "Bm", "D", "E", "F#maj7", "F#m7"],
+            "G": ["E7", "F#7", "G7", "A7", "B7", "Cm", "Eb", "F", "Gmaj7", "Gm7"],
+            "Ab": ["F7", "G7", "Ab7", "Bb7", "C7", "C#m", "E", "F#", "Abmaj7", "Abm7"],
+            "A": ["F#7", "G#7", "A7", "B7", "C#7", "Dm", "F", "G", "Amaj7", "Am7"],
+            "Bb": ["G7", "A7", "Bb7", "C7", "D7", "Ebm", "Gb", "Ab", "Bbmaj7", "Bbm7"],
+            "B": ["G#7", "A#7", "B7", "C#7", "D#7", "Fm", "Ab", "Bb", "Bmaj7", "Bm7"]
+         };
+
+         // Map of pre-tonic chords for each major key
+         // These chords create tension and lead to the tonic
+         const preTonicChordsMap = {
+             "C": ["G7", "Dm", "F", "Am", "Em", "Cm", "Ab", "Bb", "C#", "G"], // Including user examples + V, ii, IV, vi, iii
+             "C#": ["G#7", "D#m", "F#", "A#m", "Ebm", "C#m", "A", "B", "D", "G#"],
+             "D": ["A7", "Em", "G", "Bm", "F#m", "Dm", "Bb", "C", "Eb", "A"],
+             "Eb": ["Bb7", "Fm", "Ab", "Cm", "Gm", "Ebm", "B", "C#", "E", "Bb"],
+             "E": ["B7", "F#m", "A", "C#m", "G#m", "Em", "C", "D", "F", "B"],
+             "F": ["C7", "Gm", "Bb", "Dm", "Am", "Fm", "Db", "Eb", "F#", "C"],
+             "F#": ["C#7", "G#m", "B", "D#m", "A#m", "F#m", "D", "E", "G", "C#"],
+             "G": ["D7", "Am", "C", "Em", "Bm", "Gm", "Eb", "F", "Ab", "D"],
+             "Ab": ["Eb7", "Bbm", "Db", "Fm", "Cm", "Abm", "E", "F#", "A", "Eb"],
+             "A": ["E7", "F#m", "D", "C#m", "G#m", "Am", "F", "G", "Bb", "E"],
+             "Bb": ["F7", "Gm", "Eb", "Cm", "Dm", "Bbm", "Gb", "Ab", "B", "F"],
+             "B": ["F#7", "G#m", "E", "D#m", "A#m", "Bm", "G", "Ab", "C", "F#"]
+         };
+
+         // Map of plausible resolutions for tension chords (Dominant 7, Diminished)
+         // Key: Tension chord (relative to the tonal center)
+         // Value: Array of plausible resolution chords
+         const resolutionMap = {
+             "C": {
+                 "G7": ["C", "Cmaj7", "Am", "F"], // V7 -> I, Imaj7, vi, IV
+                 "D7": ["G", "Gmaj7", "Em", "C"], // V7/V -> V, Vmaj7, iii, I
+                 "A7": ["Dm", "D"],             // V7/ii -> ii, II
+                 "E7": ["Am", "A"],             // V7/vi -> vi, VI
+                 "B7": ["Em", "E"],             // V7/iii -> iii, III
+                 "F#7": ["Bm7b5", "Bm"],        // V7/vii -> vii, VII
+                 "C#7": ["F#", "F#maj7", "D#m", "B"], // V7/IV -> IV, IVmaj7, ii, bVII (Enharmonic of Db7 -> Gb, Gbm, Bbm, Ebb)
+                 "Cdim": ["C", "Am"],           // vii° -> I, vi (often as vii°7)
+                 "Cm7b5": ["C", "Am"],           // iiø7 (vii in minor) -> I, vi
+                 // Add other diminished chords if used
+             },
+              "C#": { // Example for C#
+                 "G#7": ["C#", "C#maj7", "A#m", "F#"],
+                 "D#7": ["G#", "G#maj7", "Ebm", "C#"],
+                 "A#7": ["D#m", "Eb"],
+                 "F7": ["Bbm", "Bb"],
+                 "C7": ["Fm", "F"],
+                 "G7": ["Cm7b5", "Cm"],
+                 "D#dim": ["C#", "A#m"],
+                 "Cm7b5": ["C#", "A#m"]
+             },
+             "D": { /* ... similar to C, transposed ... */
+                 "A7": ["D", "Dmaj7", "Bm", "G"],
+                 "E7": ["A", "Amaj7", "F#m", "D"],
+                 "B7": ["Em", "E"],
+                 "F#7": ["C#m", "C#"],
+                 "C#7": ["F#m", "F#"],
+                 "G#7": ["D#m7b5", "D#m"],
+                 "Ddim": ["D", "Bm"],
+                 "C#m7b5": ["D", "Bm"]
+             },
+              "Eb": { /* ... transposed ... */
+                 "Bb7": ["Eb", "Ebmaj7", "Cm", "Ab"],
+                 "F7": ["Bb", "Bbmaj7", "Gm", "Eb"],
+                 "C7": ["Fm", "F"],
+                 "G7": ["Dm", "D"],
+                 "D7": ["Gm", "G"],
+                 "A7": ["Ebm7b5", "Ebm"],
+                 "Ebdim": ["Eb", "Cm"],
+                 "Dm7b5": ["Eb", "Cm"]
+             },
+              "E": { /* ... transposed ... */
+                 "B7": ["E", "Emaj7", "C#m", "A"],
+                 "F#7": ["B", "Bmaj7", "G#m", "E"],
+                 "C#7": ["F#m", "F#"],
+                 "G#7": ["C#m", "C#"],
+                 "D#7": ["G#m", "G#"],
+                 "A#7": ["F#m7b5", "F#m"],
+                 "Edim": ["E", "C#m"],
+                 "D#m7b5": ["E", "C#m"]
+             },
+              "F": { /* ... transposed ... */
+                 "C7": ["F", "Fmaj7", "Dm", "Bb"],
+                 "G7": ["C", "Cmaj7", "Am", "F"],
+                 "D7": ["Gm", "G"],
+                 "A7": ["Dm", "D"],
+                 "E7": ["Am", "A"],
+                 "B7": ["Em7b5", "Em"],
+                 "Fdim": ["F", "Dm"],
+                 "Em7b5": ["F", "Dm"]
+             },
+              "F#": { /* ... transposed ... */
+                 "C#7": ["F#", "F#maj7", "D#m", "B"],
+                 "G#7": ["C#", "C#maj7", "A#m", "F#"],
+                 "D#7": ["G#m", "G#"],
+                 "A#7": ["D#m", "Eb"],
+                 "F7": ["Bbm", "Bb"],
+                 "C7": ["Fm7b5", "Fm"],
+                 "F#dim": ["F#", "D#m"],
+                 "Ebm7b5": ["F#", "D#m"]
+             },
+              "G": { /* ... transposed ... */
+                 "D7": ["G", "Gmaj7", "Em", "C"],
+                 "A7": ["D", "Dmaj7", "Bm", "G"],
+                 "E7": ["Am", "A"],
+                 "B7": ["Em", "E"],
+                 "F#7": ["Bm", "B"],
+                 "C#7": ["F#m7b5", "F#m"],
+                 "Gdim": ["G", "Em"],
+                 "F#m7b5": ["G", "Em"]
+             },
+              "Ab": { /* ... transposed ... */
+                 "Eb7": ["Ab", "Abmaj7", "Fm", "Db"],
+                 "Bb7": ["Eb", "Ebmaj7", "Cm", "Ab"],
+                 "F7": ["Bbm", "Bb"],
+                 "C7": ["Fm", "F"],
+                 "G7": ["Cm", "C"],
+                 "D7": ["Gm7b5", "Gm"],
+                 "Abdim": ["Ab", "Fm"],
+                 "Gm7b5": ["Ab", "Fm"]
+             },
+              "A": { /* ... transposed ... */
+                 "E7": ["A", "Amaj7", "F#m", "D"],
+                 "B7": ["E", "Emaj7", "C#m", "A"],
+                 "F#7": ["Bm", "B"],
+                 "C#7": ["F#m", "F#"],
+                 "G#7": ["C#m", "C#"],
+                 "D#7": ["A#m7b5", "A#m"],
+                 "Adim": ["A", "F#m"],
+                 "G#m7b5": ["A", "F#m"]
+             },
+              "Bb": { /* ... transposed ... */
+                 "F7": ["Bb", "Bbmaj7", "Gm", "Eb"],
+                 "C7": ["F", "Fmaj7", "Dm", "Bb"],
+                 "G7": ["Cm", "C"],
+                 "D7": ["Gm", "G"],
+                 "A7": ["Dm", "D"],
+                 "E7": ["Am7b5", "Am"],
+                 "Bbdim": ["Bb", "Gm"],
+                 "Am7b5": ["Bb", "Gm"]
+             },
+              "B": { /* ... transposed ... */
+                 "F#7": ["B", "Bmaj7", "G#m", "E"],
+                 "C#7": ["F#", "F#maj7", "D#m", "B"],
+                 "G#7": ["C#m", "C#"],
+                 "D#7": ["G#m", "G#"],
+                 "A#7": ["D#m", "Eb"],
+                 "E#7": ["A#m7b5", "A#m"], // E#7 enharmonic of F7
+                 "Bdim": ["B", "G#m"],
+                 "A#m7b5": ["B", "G#m"]
+             }
+         };
+
+
+        // Function to check if a chord is a tension chord (Dominant 7 or diminished/half-diminished)
+        function isTensionChord(chordName) {
+            return chordName.endsWith("7") || chordName.endsWith("dim") || chordName.endsWith("m7b5");
+        }
+
+        // Function to generate the chord progression
+        function generateChordProgression() {
+            const tonalCenter = tonalCenterSelect.value;
+            const weirdness = parseInt(weirdnessInput.value);
+            const numChords = 16; // 16 bars
+
+            const diatonic = diatonicChordsMap[tonalCenter];
+            const weird = weirdChordsMap[tonalCenter];
+            const preTonic = preTonicChordsMap[tonalCenter]; // List of pre-tonic chords
+            const tonic = tonalCenter; // The Major Tonic chord
+
+            let progression = []; // Using let because we might modify it
+
+            // The first chord is always the Tonic
+            progression.push(tonic);
+
+            // Generate the intermediate chords (up to the second to last)
+            for (let i = 1; i < numChords - 1; i++) {
+                let chosenChord;
+                const randomFactor = Math.random() * 10; // 0-10
+
+                // Determine whether to choose a diatonic or "weird" chord
+                if (randomFactor < weirdness) {
+                    chosenChord = weird[Math.floor(Math.random() * weird.length)];
+                } else {
+                    chosenChord = diatonic[Math.floor(Math.random() * diatonic.length)];
+                }
+
+                progression.push(chosenChord);
+            }
+
+            // The last chord is a pre-tonic chord
+            const lastChord = preTonic[Math.floor(Math.random() * preTonic.length)];
+            progression.push(lastChord);
+
+            // --- Post-Generation Correction for Resolutions ---
+            const currentResolutionMap = resolutionMap[tonalCenter];
+
+            for (let i = 0; i < progression.length - 1; i++) {
+                const currentChord = progression[i];
+                const nextChord = progression[i + 1];
+
+                // Check if the current chord is a tension chord
+                if (isTensionChord(currentChord)) {
+                    // Find the plausible resolutions for this tension chord in the current tonal center
+                    const plausibleResolutions = currentResolutionMap[currentChord];
+
+                    // If there are plausible resolutions defined for this chord
+                    if (plausibleResolutions) {
+                        // Check if the next chord is NOT a plausible resolution
+                        if (!plausibleResolutions.includes(nextChord)) {
+                            // Replace the next chord with a random plausible resolution
+                            const correctedResolution = plausibleResolutions[Math.floor(Math.random() * plausibleResolutions.length)];
+                            progression[i + 1] = correctedResolution;
+                             console.log(`Corrected: ${currentChord} -> ${nextChord} changed to ${currentChord} -> ${correctedResolution}`); // Log for debugging
+                        }
+                    }
+                     // Note: If a tension chord doesn't have defined resolutions in the resolutionMap,
+                     // the original random generation is kept.
+                }
+            }
+             // End Post-Generation Correction
+
+
+            displayChordProgression(progression);
+        }
+
+        // Function to display the generated chords
+        function displayChordProgression(progression) {
+            chordProgressionDisplay.innerHTML = ''; // Clear previous display
+
+            progression.forEach((chord, index) => {
+                const chordCard = document.createElement('div');
+                chordCard.classList.add('chord-card');
+                chordCard.textContent = chord;
+                 chordCard.dataset.index = index; // Add index for highlighting during playback
+
+
+                // Add hover events for audio
+                chordCard.addEventListener('mouseenter', () => playChordArpeggio(chord));
+                chordCard.addEventListener('mouseleave', () => stopArpeggio());
+
+                chordProgressionDisplay.appendChild(chordCard);
+            });
+
+             infoBox.classList.remove('hidden'); // Show the info box
+        }
+
+        // Function to play the entire progression
+        function playProgression() {
+            const chordCards = document.querySelectorAll('.chord-card');
+            const progression = Array.from(chordCards).map(card => card.textContent); // Get chords from the display
+
+            // Stop any previous playback
+            if (playbackSequence) {
+                playbackSequence.stop();
+                playbackSequence.dispose();
+            }
+             Tone.Transport.stop(); // Ensure the transport is stopped
+             clearPlaybackHighlighting(); // Remove previous highlighting
+
+             // Create a sequence to play the chords
+             playbackSequence = new Tone.Sequence((time, index) => {
+                 const chordName = progression[index];
+                 const notes = chordNotesMap[chordName];
+
+                 if (notes) {
+                     // Highlight the current chord
+                     clearPlaybackHighlighting();
+                     const currentCard = chordProgressionDisplay.querySelector(`.chord-card[data-index='${index}']`);
+                     if (currentCard) {
+                         currentCard.classList.add('playing');
+                     }
+
+                     // Play the chord
+                     synth.triggerAttackRelease(notes, '1n', time); // Play for one bar (1n)
+                 }
+             }, Array.from(progression.keys()), '1n'); // Array of indices, 1 bar interval
+
+             // Set the tempo and start the transport
+             Tone.Transport.bpm.value = 80; // A BPM for playback (you can adjust)
+             playbackSequence.start(0); // Start immediately
+             Tone.Transport.start();
+        }
+
+        // Function to stop playback
+        function stopProgression() {
+             if (playbackSequence) {
+                 playbackSequence.stop();
+                 playbackSequence.dispose();
+                 playbackSequence = null;
+             }
+             Tone.Transport.stop(); // Stop Tone.js transport
+             clearPlaybackHighlighting(); // Remove highlighting
+        }
+
+
+        // Function to remove playback highlighting
+        function clearPlaybackHighlighting() {
+            document.querySelectorAll('.chord-card.playing').forEach(card => {
+                card.classList.remove('playing');
+            });
+        }
+
+
+        // Add listener to the generate button
+        generateButton.addEventListener('click', generateChordProgression);
+
+        // Add listener to the play button
+        playButton.addEventListener('click', playProgression);
+
+         // Add listener to the stop button
+        stopButton.addEventListener('click', stopProgression);
+
+
+        // Generate an initial chord progression on page load
+        generateChordProgression();
+
+    </script>
+
+</body>
+</html>
